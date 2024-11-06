@@ -1,0 +1,217 @@
+﻿@page "/chamada-aluno/{data_aula?}"
+@using RestSharp
+@using System.Text.Json
+
+
+<MudDatePicker Label="Basic example" @bind-Date="_date" />
+<MudDivider Style="margin: 0px 16px;" />
+
+@foreach(var aluno in alunos)
+{
+    
+    @if(aluno.clicado)
+    {
+        <MudCard Outlined="true"
+                 @onclick="@(()=> AlunoClicado(aluno))"
+                 Style="margin-top: 8px; border-color: green;">
+            <MudCardHeader>
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Dark"></MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.body1" Color="Color.Success">@aluno.nome</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Success">Faixa: @faixaDescricao.Where(p => p.Key == aluno.faixa).FirstOrDefault().Value</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+        </MudCard>
+    } else
+    {
+        <MudCard Outlined="true"
+                 @onclick="@(()=> AlunoClicado(aluno))"
+                 Style="margin-top: 8px;">
+            <MudCardHeader>
+                <CardHeaderAvatar>
+                    <MudAvatar Color="Color.Dark"></MudAvatar>
+                </CardHeaderAvatar>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.body1">@aluno.nome</MudText>
+                    <MudText Typo="Typo.body2">Faixa: @faixaDescricao.Where(p => p.Key == aluno.faixa).FirstOrDefault().Value</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+        </MudCard>
+    }
+
+
+}
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SalvarChamada">Salvar</MudButton>
+
+
+@code {
+    private DateTime? _date = DateTime.Today;
+
+    [Parameter]
+    public string? data_aula { get; set; }
+
+    List<Models.AulasAlunos> aulasAlunos = new List<Models.AulasAlunos>();
+    List<Models.Alunos> alunos = new List<Models.Alunos>();
+
+    protected async override void OnAfterRender(bool firstRender)
+    {
+        if(firstRender)
+        {
+            DateTime _data_aula = Convert.ToDateTime(data_aula?.Replace("-", "/"));
+            if (data_aula != "")
+            {
+                _date = _data_aula;
+            }
+
+
+            aulasAlunos = await ListarTodosAlunosPorDataAula(_data_aula);
+            alunos = await ListarTodosAlunos();
+            StateHasChanged();
+        }
+
+    }
+
+
+
+    void AlunoClicado(Models.Alunos _aluno)
+    {
+        if(_aluno.clicado)
+        {
+            _aluno.clicado = false;
+        } else
+        {
+            _aluno.clicado = true;
+
+        }
+        StateHasChanged();
+    }
+
+    async void SalvarChamada()
+    {
+        var client = new RestClient("https://localhost:7165/api/aulas/v1");
+
+        List<Models.AulasAlunos> aulasAlunos;
+        RestRequest request;
+        RestResponse response;
+        MudBlazor.Severity severity;
+
+        #region IncluirAlunosChamada
+        aulasAlunos = new List<Models.AulasAlunos>();        
+        request = new RestRequest("cadastrar", Method.Post);
+
+        foreach (var aluno in alunos.Where(p => p.clicado == true))
+        {
+            aulasAlunos.Add(new Models.AulasAlunos
+            {
+                data_aula = _date,
+                id_aluno = aluno.id
+            });           
+        }
+        request.AddBody(aulasAlunos);
+        response = await client.ExecutePostAsync(request);
+        #endregion
+
+        #region ExcluirAlunosChamada
+        aulasAlunos = new List<Models.AulasAlunos>();
+        request = new RestRequest("excluirAlunoAula", Method.Delete);
+
+        foreach (var aluno in alunos.Where(p => p.clicado == false))
+        {
+            aulasAlunos.Add(new Models.AulasAlunos
+                {
+                    data_aula = _date,
+                    id_aluno = aluno.id
+                });
+        }
+        request.AddBody(aulasAlunos);
+        response = await client.ExecuteDeleteAsync(request);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.OK)
+        {
+            severity = Severity.Success;
+        }
+        else
+        {
+            severity = Severity.Error;
+        }
+
+        Snackbar.Add(response.Content.Replace("\"", ""), severity);
+        #endregion
+
+        //NavManager.NavigateTo("/alunos");
+
+    }
+
+    async Task<List<Models.AulasAlunos>> ListarTodosAlunosPorDataAula(DateTime data_aula)
+    {
+        List<Models.AulasAlunos> aulasAlunos = new List<Models.AulasAlunos>();
+        var client = new RestClient("https://localhost:7165/api/aulas/v1");
+        var request = new RestRequest("listarPorDataAula", Method.Get);
+        request.AddQueryParameter("data_aula", data_aula);
+
+        var response = await client.ExecuteGetAsync(request);
+        List<Models.AulasAlunos> aulasAlunoResponse = JsonSerializer.Deserialize<List<Models.AulasAlunos>>(response.Content);
+
+        return aulasAlunoResponse;
+    }
+
+    async Task<List<Models.Alunos>> ListarTodosAlunos()
+    {
+        try
+        {
+            var client = new RestClient("https://localhost:7165/api/alunos/v1");
+            var request = new RestRequest("listarTodos", Method.Get);
+            request.AddQueryParameter("_ativo", 1);
+
+            var response = await client.ExecuteGetAsync(request);
+            List<Models.Alunos> aulasAlunoResponse = JsonSerializer.Deserialize<List<Models.Alunos>>(response.Content);
+
+
+            List<Models.Alunos> alunosNaAula = new List<Models.Alunos>();
+            foreach (var item in aulasAlunoResponse)
+            {
+                bool _clicado;
+                if(aulasAlunos.Find(p=>p.id_aluno == item.id) != null)
+                {
+                    _clicado = true;
+                } else
+                {
+                    _clicado = false;
+                }
+                
+                alunosNaAula.Add(new Models.Alunos
+                    {
+                        id = item.id,
+                        nome = item.nome,
+                        idade = item.idade,
+                        faixa = item.faixa,
+                        ativo = item.ativo,
+                        clicado = _clicado
+                    });
+            }
+
+            return alunosNaAula;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Erro ao carregar os alunos. " + Environment.NewLine + ex.Message, Severity.Error);
+            return null;
+        }
+        
+    }
+
+    Dictionary<int, string> faixaDescricao = new Dictionary<int, string>
+        {
+            [7] = "Branca",
+            [6] = "Amarela",
+            [5] = "Laranja",
+            [4] = "Azul",
+            [3] = "Verde",
+            [2] = "Roxa",
+            [1] = "Marrom",
+            [0] = "Preta",
+        };
+}

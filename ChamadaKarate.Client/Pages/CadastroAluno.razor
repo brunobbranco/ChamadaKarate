@@ -1,0 +1,119 @@
+﻿@page "/cadastro-aluno/{id:int}"
+
+@using RestSharp
+@using System.Text.Json
+
+@inject NavigationManager NavManager
+
+@if(Id == 0)
+{
+    <h3>Cadastrar aluno</h3>
+} else
+{
+    <h3>Editar aluno</h3>
+}
+
+
+<MudForm @ref="form" Model="Aluno" Style="margin-top: 36px;">
+    <MudTextField T="string"
+                  Label="Nome"
+                  @bind-Value="Aluno.nome"
+                  Required="true"
+                  RequiredError="Nome do aluno é obrigatório" 
+     />
+    <MudSelect 
+                  Label="Faixa"
+                  @bind-Value="Aluno.faixa"
+                  Required="true"
+                  RequiredError="Faixa do aluno é obrigatório"
+    >
+
+                  <MudSelectItem Value=7>Branca</MudSelectItem>
+                  <MudSelectItem Value=6>Amarela</MudSelectItem>
+                  <MudSelectItem Value=5>Laranja</MudSelectItem>
+                  <MudSelectItem Value=4>Azul</MudSelectItem>
+                  <MudSelectItem Value=3>Verde</MudSelectItem>
+                  <MudSelectItem Value=2>Roxa</MudSelectItem>
+                  <MudSelectItem Value=1>Marrom</MudSelectItem>
+                  <MudSelectItem Value=0>Preta</MudSelectItem>
+
+    </MudSelect>
+    <MudNumericField @bind-Value="Aluno.idade" Label="Idade" />
+    <MudCheckBox @bind-Value="Aluno.ativo">Ativo?</MudCheckBox>
+
+    <MudButton Color="Color.Primary" Variant="@Variant.Filled" OnClick="@(() => SalvarAluno())">Salvar</MudButton>
+    
+
+</MudForm>
+
+@code {
+    MudForm form;
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private Models.Alunos Aluno { get; set; } = new Models.Alunos { faixa = 7 };
+
+    async protected override void OnAfterRender(bool firstRender)
+    {
+        if(firstRender)
+        {
+            Aluno = await BuscarDadosAluno(Id);
+            StateHasChanged();
+
+        }
+    }
+
+    async Task<Models.Alunos> BuscarDadosAluno(int id)
+    {
+        var client = new RestClient("https://localhost:7165/api/alunos/v1");
+        var request = new RestRequest("alunoPorId", Method.Get);
+        request.AddQueryParameter("id", Id);
+        var response = await client.ExecuteGetAsync(request);
+        Models.Alunos alunosResponse = JsonSerializer.Deserialize<Models.Alunos>(response.Content);
+
+        return alunosResponse;
+    }
+
+    private async void SalvarAluno()
+    {
+        var client = new RestClient("https://localhost:7165/api/alunos/v1");
+
+        if (Id == 0)
+        {
+            //Inclusão
+            var request = new RestRequest("cadastrar", Method.Post);
+            request.AddBody(new
+            {
+                nome = Aluno.nome,
+                faixa = Aluno.faixa,
+                idade = Aluno.idade,
+                ativo = Aluno.ativo,
+            });
+
+            var response = await client.ExecutePostAsync(request);
+            Models.AlunosResponse alunoResponse = JsonSerializer.Deserialize<Models.AlunosResponse>(response.Content);
+            Snackbar.Add("Aluno inserido com sucesso. Id: " + alunoResponse.id_aluno.ToString(), Severity.Success);
+            //NavManager.NavigateTo("/alunos");
+            return;
+        }
+        else
+        {
+            //Atualização
+            var request = new RestRequest("atualizar", Method.Put);
+            request.AddBody(new
+            {
+                id = Aluno.id,
+                nome = Aluno.nome,
+                faixa = Aluno.faixa,
+                idade = Aluno.idade,
+                ativo = Aluno.ativo,
+            });
+
+            var response = await client.ExecutePutAsync(request);
+            // Models.AlunosResponse alunoResponse = JsonSerializer.Deserialize<Models.AlunosResponse>(response.Content);
+            Snackbar.Add("Aluno atualizado com sucesso", Severity.Success);
+            return;
+        }
+    }
+}

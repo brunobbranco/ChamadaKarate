@@ -1,0 +1,63 @@
+﻿@page "/chamadas"
+@using RestSharp
+@using System.Text.Json
+
+@inject NavigationManager NavManager
+
+
+<MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="NovaChamada">Cadastrar</MudButton>
+<MudDivider Style="margin: 0px 16px;"/>
+
+@foreach(var aula in aulas)
+{
+    <MudCard
+        Outlined="true"
+             @onclick="@(()=> AulaClicada(aula))"
+        Style="margin-top: 8px;" >
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.body1">@aula.ToString("dd/MM/yyyy")</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>        
+    </MudCard>
+}
+
+@code {
+    List<DateTime> aulas = new List<DateTime>();
+
+    protected async override void OnAfterRender(bool firstRender)
+    {
+        if(firstRender)
+        {
+            aulas = await ListarTodasAsAulas();
+            StateHasChanged();
+        }
+    }
+
+    async Task<List<DateTime>> ListarTodasAsAulas()
+    {
+        List<Models.Aulas> aulas = new List<Models.Aulas>();
+        var client = new RestClient("https://localhost:7165/api/aulas/v1");
+        var request = new RestRequest("listarTodas", Method.Get);
+
+        var response = await client.ExecuteGetAsync(request);
+        List<Models.Aulas> aulasResponse = JsonSerializer.Deserialize<List<Models.Aulas>>(response.Content);
+
+        return aulasResponse.Select(a=>a.data_aula).Distinct().ToList();
+    }
+
+    void AulaClicada(DateTime aula)
+    {
+        NavManager.NavigateTo($"/chamada-aluno/{aula.ToString("dd/MM/yyyy").Replace("/","-")}");
+
+    }
+
+    void NovaChamada()
+    {
+        NavManager.NavigateTo("/chamada-aluno");
+
+    }
+
+    
+
+}

@@ -1,0 +1,79 @@
+﻿@page "/alunos"
+@using RestSharp
+@using System.Text.Json
+
+@inject NavigationManager NavManager
+
+
+<MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="NovoAluno">Cadastrar</MudButton>
+<MudDivider Style="margin: 0px 16px;"/>
+
+@foreach(var aluno in alunos)
+{
+    <MudCard
+        Outlined="true"
+        Style="margin-top: 8px;"
+    >
+        <MudCardHeader>
+            <CardHeaderAvatar>
+                <MudAvatar Color="Color.Dark"></MudAvatar>
+            </CardHeaderAvatar>
+            <CardHeaderContent>
+                <MudText Typo="Typo.body1">@aluno.nome</MudText>
+                <MudText Typo="Typo.body2">Faixa: @faixaDescricao.Where(p=> p.Key == aluno.faixa).FirstOrDefault().Value</MudText>
+            </CardHeaderContent>            
+            <CardHeaderActions>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Default" OnClick="@(()=>EditarAluno(aluno.id))" />
+            </CardHeaderActions>
+        </MudCardHeader>        
+    </MudCard>
+}
+
+@code {
+    List<Models.Alunos> alunos = new List<Models.Alunos>();
+
+    protected async override void OnAfterRender(bool firstRender)
+    {
+        if(firstRender)
+        {
+            alunos = await ListarTodosAlunos();
+            StateHasChanged();
+        }
+    }
+
+    async Task<List<Models.Alunos>> ListarTodosAlunos()
+    {
+        var client = new RestClient("https://localhost:7165/api/alunos/v1");
+        var request = new RestRequest("listarTodos", Method.Get);
+        
+        var response = await client.ExecuteGetAsync(request);
+        List<Models.Alunos> alunosResponse = JsonSerializer.Deserialize<List<Models.Alunos>>(response.Content);
+
+        return alunosResponse;
+    }
+
+    Dictionary<int, string> faixaDescricao = new Dictionary<int, string>
+    {
+        [7] = "Branca",
+        [6] = "Amarela",
+        [5] = "Laranja",
+        [4] = "Azul",
+        [3] = "Verde",
+        [2] = "Roxa",
+        [1] = "Marrom",
+        [0] = "Preta",
+    };
+
+
+    void NovoAluno()
+    {
+        NavManager.NavigateTo("/cadastro-aluno");
+
+    }
+
+    void EditarAluno(int id)
+    {
+        NavManager.NavigateTo($"/cadastro-aluno/{id}");
+    }
+
+}
